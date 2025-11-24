@@ -39,6 +39,10 @@ def optimize_model(policy_net, target_net, optimizer):
     
     optimizer.zero_grad()
     loss.backward()
+    
+    # SIMPLE GRADIENT CLIPPING ONLY
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), max_norm=10.0)
+    
     optimizer.step()
     
     avg_q = current_q_values.mean().item()
@@ -59,8 +63,6 @@ def train():
     
     optimizer = optim.RMSprop(policy_net.parameters(), lr=config.LEARNING_RATE, 
                             alpha=0.95, eps=0.01)
-    
-    # Initialize memory - THIS SHOULD WORK NOW
     memory.init_memory(config.MEMORY_SIZE)
     
     frame_idx = 0
@@ -70,7 +72,7 @@ def train():
     loss_history = []
     q_history = []
     
-    print("Starting training...")
+    print("Starting training for 1M frames...")
     start_time = time.time()
     
     while frame_idx < config.TOTAL_FRAMES:
@@ -85,8 +87,6 @@ def train():
         
         next_frame, reward, done, truncated, _ = env.step(action)
         next_state = update_state(state.copy(), next_frame)
-        
-        # Push to memory - THIS SHOULD WORK NOW
         memory.push_memory(np.array(state), action, reward, np.array(next_state), done)
         
         episode_reward += reward
@@ -100,10 +100,8 @@ def train():
         
         frame_idx += 1
         
-        # Training step
-        loss = 0.0
-        avg_q = 0.0
-        if frame_idx > config.REPLAY_START_SIZE:
+        # Training step - ONLY IF WE HAVE ENOUGH MEMORY
+        if frame_idx > config.REPLAY_START_SIZE and frame_idx % 4 == 0:  # Train every 4 frames
             loss, avg_q = optimize_model(policy_net, target_net, optimizer)
             loss_history.append(loss)
             q_history.append(avg_q)
@@ -112,8 +110,8 @@ def train():
         if frame_idx % config.TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
         
-        # Logging and printing
-        if frame_idx % 10000 == 0:
+        # Logging and printing - Every 5% progress (50k frames)
+        if frame_idx % 50000 == 0:
             avg_reward = np.mean(episode_rewards[-100:]) if episode_rewards else 0
             avg_loss = np.mean(loss_history[-100:]) if loss_history else 0
             avg_q_value = np.mean(q_history[-100:]) if q_history else 0
@@ -122,19 +120,19 @@ def train():
             log_file.write(f"{frame_idx},{avg_reward:.2f},{epsilon:.3f},{avg_loss:.4f},{avg_q_value:.3f}\n")
             log_file.flush()
             
-            # Print progress every 5%
-            if frame_idx % (config.TOTAL_FRAMES // 20) == 0:
-                progress = (frame_idx / config.TOTAL_FRAMES) * 100
-                elapsed_time = time.time() - start_time
-                print(f"Progress: {progress:.1f}% | Frame: {frame_idx} | Avg Reward: {avg_reward:.2f} | "
-                      f"Epsilon: {epsilon:.3f} | Avg Loss: {avg_loss:.4f} | Avg Q: {avg_q_value:.3f} | "
-                      f"Time: {elapsed_time:.1f}s")
+            # Print progress every 5% (50k frames)
+            progress = (frame_idx / config.TOTAL_FRAMES) * 100
+            print(f"Progress: {progress:.1f}% | Frame: {frame_idx} | Avg Reward: {avg_reward:.2f} | "
+                  f"Epsilon: {epsilon:.3f} | Avg Loss: {avg_loss:.4f} | Avg Q: {avg_q_value:.3f}")
     
     # Save final model
-    torch.save(policy_net.state_dict(), 'trained_model.pth')
+    torch.save(policy_net.state_dict(), 'trained_model.pth', weights_only=True)
     log_file.close()
     env.close()
-    print("Training completed!")
+    
+    total_time = (time.time() - start_time) / 3600
+    print(f"Training completed! Total time: {total_time:.2f} hours")
+    print("Model saved as 'trained_model.pth'")
 
 if __name__ == "__main__":
     train()

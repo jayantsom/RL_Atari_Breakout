@@ -24,7 +24,7 @@ def plot_training(log_file):
     
     plt.subplot(2, 2, 1)
     plt.plot(frames, rewards)
-    plt.title('Rewards')
+    plt.title('Average Rewards')
     plt.xlabel('Frames')
     plt.ylabel('Reward')
     plt.grid(True)

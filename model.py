@@ -25,6 +25,13 @@ def create_dqn(action_size):
     fc1 = nn.Linear(conv_out_size, FC_UNITS)
     fc2 = nn.Linear(FC_UNITS, action_size)
     
+    # BETTER INITIALIZATION
+    for layer in [conv1, conv2, conv3, fc1, fc2]:
+        if hasattr(layer, 'weight'):
+            nn.init.kaiming_normal_(layer.weight, nonlinearity='relu')
+        if hasattr(layer, 'bias'):
+            nn.init.constant_(layer.bias, 0.1)
+    
     layers = [conv1, nn.ReLU(), conv2, nn.ReLU(), conv3, nn.ReLU(), 
               nn.Flatten(), fc1, nn.ReLU(), fc2]
     model = nn.Sequential(*layers)
